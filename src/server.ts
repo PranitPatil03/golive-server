@@ -1,8 +1,9 @@
+import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import dotenv from "dotenv";
-import cors from "cors";
 import express, { Request, Response } from "express";
+import dotenv from "dotenv";
+import userRoutes from "./routes/users";
 
 dotenv.config();
 
@@ -38,6 +39,8 @@ app.get("/health", (req: Request, res: Response) => {
   };
   res.json(response);
 });
+
+app.use("/api/users", userRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
