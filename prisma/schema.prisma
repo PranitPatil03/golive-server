@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,16 +7,66 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+  VIEWER
+  STREAMER
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+  SUBSCRIBERS_ONLY
+}
+
+enum StreamLatency {
+  NORMAL
+  LOW
+  ULTRA_LOW
+}
+
+enum StreamStatus {
+  CREATED
+  LIVE
+  ENDED
+  SCHEDULED
+  ERROR
+}
+
+enum StreamQuality {
+  SOURCE
+  HD_1080P
+  HD_720P
+  SD_480P
+  SD_360P
+  SD_240P
+}
+
 model User {
-  id            String    @id
+  id            String  @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String  @unique
+  channelName   String? @unique
+  emailVerified Boolean @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+
+  subscriptionsCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+  streams  Stream[]
+  role     Role      @default(USER)
+
+  chatMessages ChatMessage[]
+  streamViews  StreamView[]
+
+  notifications Notification[]
 
   @@map("user")
 }
@@ -66,4 +113,175 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@map("verification")
+}
+
+model Stream {
+  id          String  @id
+  title       String
+  description String?
+
+  status    StreamStatus @default(CREATED)
+  isLive    Boolean      @default(false)
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  streamKey String? @unique
+  streamUrl String?
+
+  thumbnailUrl    String?
+  previewImageUrl String?
+  recordingUrl    String?
+  hlsPlaylistUrl  String?
+
+  currentViewers Int @default(0)
+  peakViewers    Int @default(0)
+  totalViews     Int @default(0)
+  totalDuration  Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId   String
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metadata StreamMetadata?
+
+  chatMessages  ChatMessage[]
+  streamViews   StreamView[]
+  streamQuality StreamQualityOption[]
+
+  @@map("stream")
+}
+
+model StreamMetadata {
+  id String @id
+
+  tags       String[]
+  categories String[]
+  language   String?
+
+  likes    Int @default(0)
+  dislikes Int @default(0)
+  comments Int @default(0)
+  shares   Int @default(0)
+
+  visibility      Visibility    @default(PUBLIC)
+  streamLatency   StreamLatency @default(NORMAL)
+  enableChat      Boolean       @default(true)
+  enableRecording Boolean       @default(false)
+  chatMode        String        @default("everyone")
+
+  scheduleDate       DateTime?
+  scheduledStartTime DateTime?
+  scheduledEndTime   DateTime?
+
+  streamingKey       String? @unique
+  streamingUrl       String?
+  backupStreamingUrl String?
+
+  maxBitrate    Int?
+  maxResolution String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  streamId String @unique
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@map("stream_metadata")
+}
+
+model StreamQualityOption {
+  id         String        @id @default(cuid())
+  quality    StreamQuality
+  resolution String
+  bitrate    Int
+  fps        Int
+  codec      String
+  isDefault  Boolean       @default(false)
+
+  isAdaptive          Boolean  @default(false)
+  adaptiveBitrates    Int[]
+  adaptiveResolutions String[]
+
+  streamId String
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([streamId, quality])
+  @@map("stream_quality_option")
+}
+
+model ChatMessage {
+  id      String @id @default(cuid())
+  content String
+
+  isDeleted Boolean @default(false)
+  isEdited  Boolean @default(false)
+
+  userId   String
+  streamId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([streamId, createdAt])
+  @@map("chat_message")
+}
+
+model StreamView {
+  id String @id @default(cuid())
+
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  country   String?
+
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  duration Int?
+
+  streamId String
+
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, joinedAt])
+  @@map("stream_view")
+}
+
+model Notification {
+  id      String @id @default(cuid())
+  type    String
+  title   String
+  message String
+  data    Json?
+
+  isRead Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("notification")
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("category")
 }
